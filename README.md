@@ -21,7 +21,7 @@ and distortion correction for displacement measurement experiments.
 │       └── Arduino_Computer_Connection_Code
 ├── lib
 │   ├── L1_Image_Conversion.py
-│   ├── L2_Point_Detection.py
+│   ├── L2_Point_Detection_Conversion.py
 │   ├── L3_Zhang_Camera_Calibration.py
 │   ├── L4_Pipeline_Utilities.py
 │   └── L5_Visualization_Utilities.py
