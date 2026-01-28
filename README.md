@@ -28,15 +28,16 @@ and distortion correction for displacement measurement experiments.
 └── main.py
 ```
 
-### Algortihm/
+### Algortihm
 - **A1_Marker_detection.py**: Marker detection algorithm (Algorithm 1).
 - **A2_Camera_calibration.py**: Camera calibration using Zhang’s method (Algorithm 2).
 - **A3_Reprojection_Error_calculation.py**: Reprojection error evaluation (Algorithm 3).
 - **A4_Lens_distortion_correction.py**: Lens distortion correction (Algorithm 4).
 - **A5_Homography_correction.py**: Perspective correction via homography (Algorithm 5).
 - **A6_Deformation_measurement.py**: Final displacement and deformation measurement.
-- 
-### lib/
+
+  
+### lib
 This directory contains core utility modules used across the processing pipeline:
 - **L1_Image_Conversion.py**: Image generation and format conversion utilities.
 - **L2_Point_Detection.py**: Feature and marker point detection functions.
@@ -44,5 +45,5 @@ This directory contains core utility modules used across the processing pipeline
 - **L4_Pipeline_Utilities.py**: Shared utilities for pipeline execution in `main.py`.
 - **L5_Visualization_Utilities.py**: Visualization tools for points and images.
 
-   **main.py**: Executes the complete CV-based displacement measurement pipeline by
+**main.py**: Executes the complete CV-based displacement measurement pipeline by
   sequentially applying Algorithms 1–5 in a single run.
