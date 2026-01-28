@@ -7,24 +7,26 @@ measurement framework proposed in our paper:
 The code supports marker extraction, camera calibration,
 and distortion correction for displacement measurement experiments.
 
-Tree code
+```text
+.
 ├── Demo
-│   ├── Algortihm
-│   │   ├── A1_Marker detection algorithm.py
-│   │   ├── A2_Camera calibration algorithm.py
-│   │   ├── A3_Reprojection error calculation algorithm.py
-│   │   ├── A4_Lens distortion correction algorithm.py
-│   │   ├── A5_Homography correction algorithm.py 
-│   │   └── A6_Deformation measurement algorithm.py 
+│   ├── Algorithm
+│   │   ├── A1_Marker_Detection.py
+│   │   ├── A2_Camera_Calibration.py
+│   │   ├── A3_Reprojection_Error_Calculation.py
+│   │   ├── A4_Lens_Distortion_Correction.py
+│   │   ├── A5_Homography_Correction.py
+│   │   └── A6_Deformation_Measurement.py
 │   └── Test_Method_Result
-│       └── Arduino_computer_connection_code  ###using arduino code for match LVDT signal
+│       └── Arduino_Computer_Connection_Code
 ├── lib
 │   ├── L1_Image_Conversion.py
 │   ├── L2_Point_Detection.py
 │   ├── L3_Zhang_Camera_Calibration.py
 │   ├── L4_Pipeline_Utilities.py
-│   └── L5_L5_Visualization_Utilities.py
+│   └── L5_Visualization_Utilities.py
 └── main.py
+```
 
 ### Algortihm/
 - **A1_Marker_detection.py**: Marker detection algorithm (Algorithm 1).
