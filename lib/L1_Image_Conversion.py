@@ -5,12 +5,11 @@ import matplotlib.pyplot as plt
 import matplotlib
 
 
-# from lib.L1_Image_Conversion import *
-# from lib.L2_Point_Detection import *
-# from lib.L3_Point_Conversion import *
-# from lib.L4_Zhangs_Calibration import *
-# from lib.L5_Pipeline_utility import *
-from lib.L5_ETC_visualization import *
+from lib.L1_Image_Conversion import *
+from lib.L2_Point_Detection_Conversion import *
+from lib.L3_Zhang_Camera_Calibration import *
+from lib.L4_Pipeline_Utilities import *
+from lib.L5_Visualization_Utilities import *
 
 
 
@@ -276,43 +275,6 @@ def how_much_rect(corners, r, c):
     std_deviation = np.std(distances)
     movement_df['Distance'] = distances
     return average_distance, std_deviation
-
-
-def how_much_rect_cylinder(corners, r, c):
-    # Compute neighbor distances for cylinder-like layouts (separating horizontal/vertical sets).
-
-    movement_df = pd.DataFrame()
-    df = corners
-    rows = r
-    cols = c
-    distancesE = []
-    distancesI = []
-
-    # Horizontal neighbor distances.
-    for i in range(0, df.shape[0] - 1, 1):
-        if (i + 1) % cols == 0:
-            continue
-
-        movement_x = df.iloc[i + 1, 0] - df.iloc[i, 0]
-        movement_y = df.iloc[i + 1, 1] - df.iloc[i, 1]
-        euclidean_distance_1 = (np.sqrt(movement_x ** 2 + movement_y ** 2))
-        distancesE.append(euclidean_distance_1)
-
-    # Vertical neighbor distances.
-    for i in range(0, df.shape[0] - 2, 1):
-        if (i + cols) >= df.shape[0]:
-            break
-
-        movement_x = df.iloc[i + cols, 0] - df.iloc[i, 0]
-        movement_y = df.iloc[i + cols, 1] - df.iloc[i, 1]
-        euclidean_distance_2 = (np.sqrt(movement_x ** 2 + movement_y ** 2))
-        distancesI.append(euclidean_distance_2)
-
-    average_distance = np.mean(distancesI)
-    std_deviation = np.std(distancesI)
-    movement_df['Distance'] = distancesI
-    return average_distance, std_deviation
-
 
 def crop_images_from_coordinates(image, coordinates, crop_size=(50, 50)):
     # Crop local patches around each (X, Y) coordinate and return their top-left origins.

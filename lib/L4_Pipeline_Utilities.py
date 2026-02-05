@@ -8,10 +8,11 @@ import numpy as np
 
 
 from lib.L1_Image_Conversion import *
-from lib.L2_Point_Detection import *
-from lib.L3_Zhangs_Calibration import *
-# from lib.L5_Pipeline_utility import *
-# from lib.L6_ETC_visualization import *
+from lib.L2_Point_Detection_Conversion import *
+from lib.L3_Zhang_Camera_Calibration import *
+from lib.L4_Pipeline_Utilities import *
+from lib.L5_Visualization_Utilities import *
+
 
 _IMG_EXTS = {".jpg", ".jpeg", ".png"}
 
@@ -422,3 +423,71 @@ def run_plot_from_moved_pkl(pkl_moved_dir: str, plot_dir: str, square_size_mm=10
 
     print("✅ Plot saved:", plot_dir)
     print("✅ Excel saved:", excel_out)
+
+import os
+import pickle
+
+def run_A5_homography_from_moved_pkl(
+    pkl_moved_dir: str,
+    out_homography_pkl: str,
+    square_size_mm: float = 60.0,
+    grid_rows: int = 9,
+    grid_cols: int = 12,
+    baseline_index: int = 0,
+    filter_thr: float = 50.0,
+):
+    """
+    Pipeline Step A5:
+    Estimate homography H from the baseline PKL and apply it to baseline (apply_homography stage).
+    Saves homography_params.pkl used by A6.
+    """
+    payload = estimate_homography_from_baseline(
+        pkl_dir=pkl_moved_dir,
+        square_size_mm=square_size_mm,
+        grid_rows=grid_rows,
+        grid_cols=grid_cols,
+        baseline_index=baseline_index,
+        filter_thr=filter_thr,
+    )
+
+    os.makedirs(os.path.dirname(out_homography_pkl), exist_ok=True)
+    with open(out_homography_pkl, "wb") as f:
+        pickle.dump(payload, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+    print(f"✅ [A5] Saved homography params: {out_homography_pkl}")
+    return out_homography_pkl
+
+import os
+
+def run_A6_displacement_and_plots(
+    pkl_moved_dir: str,
+    homography_pkl_path: str,
+    out_dir: str,
+    square_size_mm: float = 60.0,
+    y_threshold_align: float = 50.0,
+    x_threshold_align: float = 50.0,
+):
+    """
+    Pipeline Step A6:
+    Compute displacement using A5 homography results (A6 starts from alignment),
+    then save CSV and plots.
+    """
+    os.makedirs(out_dir, exist_ok=True)
+
+    # 1) displacement table
+    df = compute_displacement_using_homography(
+        pkl_dir=pkl_moved_dir,
+        homography_pkl_path=homography_pkl_path,
+        y_threshold_align=y_threshold_align,
+        x_threshold_align=x_threshold_align,
+    )
+    out_csv = os.path.join(out_dir, "displacement.csv")
+    df.to_csv(out_csv, index=False)
+    print(f"✅ [A6] Saved displacement table: {out_csv}")
+
+    # 2) (선택) 기존 plot 함수가 있다면 연결
+    # run_plot_from_moved_pkl(...)가 내부에서 homography를 다시 계산한다면,
+    # 그 부분을 제거한 plot 함수로 바꾸는 게 가장 깔끔함.
+    # 여기서는 최소 변경으로: df 기반 plot을 그리는 별도 함수 추천.
+
+    return out_csv

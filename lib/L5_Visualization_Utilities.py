@@ -6,12 +6,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-# from lib.L1_Image_Conversion import *
-# from lib.L2_Point_Detection import *
-# from lib.L3_Point_Conversion import *
-# from lib.L4_Zhangs_Calibration import *
-from lib.L4_Pipeline_utility import *
-# from lib.L6_ETC_visualization import *
+from lib.L1_Image_Conversion import *
+from lib.L2_Point_Detection_Conversion import *
+from lib.L3_Zhang_Camera_Calibration import *
+from lib.L4_Pipeline_Utilities import *
+from lib.L5_Visualization_Utilities import *
 
 def visualize_points(points):
     """
