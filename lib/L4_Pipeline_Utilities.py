@@ -261,14 +261,14 @@ def _A3_solve_pnp_rmse(
 
 def _A3_plot_front_rmse_bar(init_rmse: float, refined_rmse: float, save_path: str, dpi: int = 300) -> None:
     ## in English
-    plt.figure(figsize=(7, 4))
+    plt.figure(figsize=(4, 3))
     labels = ["INIT (dist=0)", "REFINED"]
     values = [init_rmse, refined_rmse]
     plt.bar(labels, values)
     plt.grid(True, axis="y", linestyle="--", alpha=0.4)
-    plt.ylabel("Front RMSE (px)", fontsize=14, fontweight="bold")
-    plt.xticks(fontsize=12)
-    plt.yticks(fontsize=12)
+    plt.ylabel("Reprojection error (px)", fontsize=20, fontweight="bold")
+    plt.xticks(fontsize=30)
+    plt.yticks(fontsize=30)
     plt.tight_layout()
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     plt.savefig(save_path, dpi=dpi)
