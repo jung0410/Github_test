@@ -105,3 +105,15 @@ if __name__ == "__main__":
         square_size_mm=args.square_size_mm,
         n_jobs=args.n_jobs,
     )
+
+### cmd 들어가서 아래 파일 입력
+
+###cd /d C:\Users\Win\PycharmProjects\Final_algorithm
+# "C:\Users\Win\OneDrive\Research_1_Computer vision\Final_algorithm\Scripts\python.exe" main.py ^
+#   --calib_image_dir "D:\demo\all_process_for_one\Input\20_images" ^
+#   --moved_image_dir "D:\demo\all_process_for_one\Input\Displacement_image" ^
+#   --work_dir "D:\demo\all_process_for_one\output" ^
+#   --image_width 4000 ^
+#   --image_height 3000 ^
+#   --square_size_mm 60 ^
+#   --n_jobs -1

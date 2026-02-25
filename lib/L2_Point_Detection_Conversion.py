@@ -1,17 +1,8 @@
-import cv2
-import matplotlib.pyplot as plt
-from scipy.optimize import least_squares
 import math
-import os
-from itertools import combinations
-import numpy as np
-import pandas as pd
+
+from scipy.optimize import least_squares
 
 from lib.L1_Image_Conversion import *
-from lib.L2_Point_Detection_Conversion import *
-from lib.L3_Zhang_Camera_Calibration import *
-from lib.L4_Pipeline_Utilities import *
-from lib.L5_Visualization_Utilities import *
 
 # ============================================================
 # IO
@@ -627,7 +618,6 @@ def find_Centroid_12_9(image):
 
 
     S, Stdev = how_much_rect(cor_1, r=12, c=9)
-    print(S)
     S = int(S)
     avg = int(0.25 * S)
 
@@ -2667,135 +2657,3 @@ def align_points_to_grid_Y_minus(data, target_rows=9, target_cols=12, y_threshol
         print(final_data)
 
     return final_data
-
-def estimate_homography_from_baseline(
-    pkl_dir: str,
-    square_size_mm: float = 100.0,
-    grid_rows: int = 9,
-    grid_cols: int = 12,
-    baseline_index: int = 0,
-    filter_thr: float = 50.0,
-):
-    """
-    A5: Estimate homography and apply it to the baseline (before grid alignment).
-    """
-    pkl_files = [f for f in os.listdir(pkl_dir) if f.lower().endswith(".pkl")]
-    pkl_files.sort(key=natural_key)
-    if not pkl_files:
-        raise RuntimeError(f"No PKL found in: {pkl_dir}")
-
-    base_file = pkl_files[baseline_index]
-    with open(os.path.join(pkl_dir, base_file), "rb") as f:
-        payload0 = pickle.load(f)
-
-    data0 = ensure_2col(payload0.get("data"))
-    ref0  = ensure_2col(payload0.get("ref_data"))
-    if data0 is None or ref0 is None:
-        raise RuntimeError(f"Baseline invalid: {base_file}")
-
-    data0 = np.asarray(data0, dtype=float)
-    ref0  = np.asarray(ref0, dtype=float)
-
-    # filtering
-    data0_f = iterative_filtering_12_9(data0, filter_thr)
-
-    # initial scale (pre-homography)
-    avg_dist_px0, _ = how_much_rect(pd.DataFrame(data0_f), grid_rows, grid_cols)
-    um_per_pixel_pre = (6.0 * 1000.0) / avg_dist_px0
-
-    # object points (mm)
-    obj_points_mm = Makeobjp(square_size_mm, grid_rows, grid_cols)
-    obj_points_mm_xy = np.asarray(obj_points_mm)[:, :2]
-
-    # homography
-    H = compute_homography_noraml(data0_f, obj_points_mm_xy)
-
-    # ✅ A5 ends here: apply homography to baseline
-    data0_h = apply_homography(H, np.array(data0_f))
-    data0_h = np.asarray(data0_h, dtype=float)
-
-    return {
-        "H": np.asarray(H, dtype=float),
-        "ref0": ref0,
-        "data0_f": data0_f,
-        "data0_h": data0_h,           # 🔑 A6 입력
-        "um_per_pixel_pre": float(um_per_pixel_pre),
-        "baseline_file": base_file,
-        "grid_rows": grid_rows,
-        "grid_cols": grid_cols,
-        "square_size_mm": float(square_size_mm),
-        "filter_thr": float(filter_thr),
-    }
-
-def compute_displacement_using_homography(
-    pkl_dir: str,
-    homography_pkl_path: str,
-    y_threshold_align: float = 50,
-    x_threshold_align: float = 50,
-):
-    """
-    A6: Deformation measurement after homography projection.
-    """
-    with open(homography_pkl_path, "rb") as f:
-        H_payload = pickle.load(f)
-
-    H = np.asarray(H_payload["H"], dtype=float)
-    ref0 = np.asarray(H_payload["ref0"], dtype=float)
-    data0_h = np.asarray(H_payload["data0_h"], dtype=float)
-
-    grid_rows = int(H_payload["grid_rows"])
-    grid_cols = int(H_payload["grid_cols"])
-
-    # ---- A6 starts here ----
-    data0_h = align_points_to_grid(
-        data0_h, grid_rows, grid_cols,
-        y_threshold_align, x_threshold_align
-    )
-    data0_h = np.asarray(data0_h, dtype=float)
-
-    # scale update after homography + alignment
-    avg_dist_px0_h, _ = how_much_rect(pd.DataFrame(data0_h), grid_rows, grid_cols)
-    um_per_pixel = (6.0 * 1000.0) / avg_dist_px0_h
-
-    pkl_files = [f for f in os.listdir(pkl_dir) if f.lower().endswith(".pkl")]
-    pkl_files.sort(key=natural_key)
-
-    records = []
-    for order, fname in enumerate(pkl_files):
-        with open(os.path.join(pkl_dir, fname), "rb") as f:
-            payload = pickle.load(f)
-
-        data = ensure_2col(payload.get("data"))
-        ref  = ensure_2col(payload.get("ref_data"))
-        if data is None or ref is None:
-            continue
-
-        data = np.asarray(data, dtype=float)
-        ref  = np.asarray(ref, dtype=float)
-
-        move = (ref - ref0).mean(axis=0)
-        data_corr = data - move
-
-        data_h = apply_homography(H, np.array(data_corr))
-        data_h = align_points_to_grid(
-            data_h, grid_rows, grid_cols,
-            y_threshold_align, x_threshold_align
-        )
-        data_h = np.asarray(data_h, dtype=float)
-
-        disp = data_h - data0_h
-        disp_um = disp * um_per_pixel
-
-        mean_dx_um, mean_dy_um = np.nanmean(disp_um, axis=0)
-        mean_disp_um = float(np.hypot(mean_dx_um, mean_dy_um))
-
-        records.append({
-            "order": order,
-            "file": fname,
-            "mean_dx_um": float(mean_dx_um),
-            "mean_dy_um": float(mean_dy_um),
-            "mean_disp_um": mean_disp_um,
-            "um_per_pixel": float(um_per_pixel),
-        })
-
-    return pd.DataFrame(records)
