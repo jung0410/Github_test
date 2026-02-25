@@ -12,7 +12,7 @@ from lib.L1_Image_Conversion import how_much_rect, undistort_image_remap
 from lib.L2_Point_Detection_Conversion import find_Centroid_12_9, find_ZernikeEdge_curvefit_12_9, find_cv_12_9, \
     find_Square_12_9_Centroid, iterative_filtering_12_9, find_Centroid_12_9_first_image_plus_ten, \
     compute_homography_noraml, Makeobjp, apply_homography, align_points_to_grid
-
+from lib.L3_Zhang_Camera_Calibration import calibrate_zhang_then_lm
 
 _IMG_EXTS = {".jpg", ".jpeg", ".png"}
 
@@ -150,8 +150,8 @@ def perform_camera_calibration_from_data(
     rows, cols = 9, 12
     objp = np.zeros((rows * cols, 3), np.float32)
     idx = 0
-    for y in range(1, rows + 1):
-        for x in range(1, cols + 1):
+    for y in range(rows, 0, -1):
+        for x in  range(1, cols + 1):
             objp[idx] = [x, y, 0]
             idx += 1
     objp *= float(square_size_mm)
@@ -159,35 +159,28 @@ def perform_camera_calibration_from_data(
     for filename, Data in saved_data:
         if Data is None:
             continue
+
+        Data = np.asarray(Data, dtype=np.float32).reshape(-1, 2)
+        Data = iterative_filtering_12_9(Data, 50)
         Data = np.asarray(Data, dtype=np.float32).reshape(-1, 2)
         objpoints.append(objp)
+
         imgpoints.append(Data)
         filenames.append(filename)
 
     if not objpoints:
         raise RuntimeError("No valid pkl data for calibration")
 
-    ret, K, dist, rvecs, tvecs = cv2.calibrateCamera(
-        objpoints, imgpoints,
-        imageSize=image_size,
-        cameraMatrix=None,
-        distCoeffs=None,
-        flags=cv2.CALIB_FIX_K3
+    K, dist, rvecs, tvecs, rmse, K_init = calibrate_zhang_then_lm(
+        image_pts_list=imgpoints,
+        grid_size=(12, 9),
+        spacing=square_size_mm,
     )
 
-    # RMSE
-    total_sq, total_pts = 0.0, 0
-    for i in range(len(objpoints)):
-        proj, _ = cv2.projectPoints(objpoints[i], rvecs[i], tvecs[i], K, dist)
-        proj = proj.reshape(-1, 2)
-        err = (imgpoints[i] - proj)
-        total_sq += float(np.sum(err**2))
-        total_pts += proj.shape[0]
-    rmse = np.sqrt(total_sq / max(1, total_pts))
-
     return {
-        "ret": ret,
+        "ret": "calibration result",
         "camera_matrix": K,
+        "camera_matrix_init": K_init,
         "dist_coeffs": dist,
         "RMSE_error": float(rmse),
         "rvecs": rvecs,
@@ -196,12 +189,182 @@ def perform_camera_calibration_from_data(
     }
 
 def save_calibration_params(calib_result: Dict[str, Any], out_path: str):
+
     payload = {
         "camera_matrix": calib_result["camera_matrix"],
         "dist_coeffs": calib_result["dist_coeffs"],
         "RMSE_error": calib_result["RMSE_error"],
+        "K_init": calib_result["camera_matrix_init"]
     }
     save_pickle(out_path, payload)
+
+# ============================================================
+# [A3] Front-Reprojection
+# ============================================================
+
+def _A3_build_objp(square_size_mm: float, grid_rows: int = 9, grid_cols: int = 12) -> np.ndarray:
+    ## in English
+    objp = np.zeros((grid_rows * grid_cols, 3), np.float64)
+    k = 0
+    for y in range(1, grid_rows + 1):
+        for x in range(1, grid_cols + 1):
+            objp[k] = [x, y, 0.0]
+            k += 1
+    objp *= float(square_size_mm)
+    return objp
+
+
+def _A3_load_calib_params(calib_param_path: str) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray]]:
+    ## in English
+    payload = load_pickle(calib_param_path)
+    K = np.asarray(payload["camera_matrix"], dtype=np.float64).reshape(3, 3)
+    dist = np.asarray(payload["dist_coeffs"], dtype=np.float64).reshape(-1)
+
+    K_init = payload.get("K_init", None)
+    if K_init is not None:
+        K_init = np.asarray(K_init, dtype=np.float64).reshape(3, 3)
+
+    return K, dist, K_init
+
+
+def _A3_solve_pnp_rmse(
+    image_pts_px: np.ndarray,
+    objp: np.ndarray,
+    K: np.ndarray,
+    dist: np.ndarray,
+) -> Tuple[float, Optional[np.ndarray], Optional[np.ndarray]]:
+    ## in English
+    dist = np.asarray(dist, dtype=np.float64).reshape(-1)
+    if dist.size < 4:
+        dist = np.pad(dist, (0, 4 - dist.size), mode="constant")
+
+    img_pts = image_pts_px.astype(np.float64).reshape(-1, 1, 2)
+    obj_pts = objp.astype(np.float64).reshape(-1, 1, 3)
+
+    ok, rvec, tvec = cv2.solvePnP(
+        objectPoints=obj_pts,
+        imagePoints=img_pts,
+        cameraMatrix=K,
+        distCoeffs=dist,
+        flags=cv2.SOLVEPNP_ITERATIVE
+    )
+    if not ok:
+        return float("nan"), None, None
+
+    proj, _ = cv2.projectPoints(obj_pts, rvec, tvec, K, dist)
+    proj = proj.reshape(-1, 2)
+
+    diff = image_pts_px.astype(np.float64) - proj
+    rmse = float(np.sqrt(np.mean(np.sum(diff ** 2, axis=1))))
+    return rmse, rvec, tvec
+
+
+def _A3_plot_front_rmse_bar(init_rmse: float, refined_rmse: float, save_path: str, dpi: int = 300) -> None:
+    ## in English
+    plt.figure(figsize=(7, 4))
+    labels = ["INIT (dist=0)", "REFINED"]
+    values = [init_rmse, refined_rmse]
+    plt.bar(labels, values)
+    plt.grid(True, axis="y", linestyle="--", alpha=0.4)
+    plt.ylabel("Front RMSE (px)", fontsize=14, fontweight="bold")
+    plt.xticks(fontsize=12)
+    plt.yticks(fontsize=12)
+    plt.tight_layout()
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    plt.savefig(save_path, dpi=dpi)
+    plt.close()
+
+
+def run_A3_reprojection_check(
+    pkl_calib_dir: str,
+    calib_param_path: str,
+    out_dir: str,
+    square_size_mm: float,
+    grid_rows: int = 9,
+    grid_cols: int = 12,
+    front_index: int = 0,
+) -> Dict[str, Any]:
+    """
+    A3:
+    1) Select a front-view point set from pkl_calib_dir (e.g., first file).
+    2) Compute Front_RMSE for INIT(dist=0) and REFINED(dist=calibrated).
+    3) PASS if INIT_RMSE <= REFINED_RMSE else NOT_PASS.
+    4) Save results (CSV/XLSX/TXT + simple bar plot).
+    """
+    ## in English
+    os.makedirs(out_dir, exist_ok=True)
+
+    ## in English
+    pkl_files = [f for f in os.listdir(pkl_calib_dir) if f.lower().endswith(".pkl")]
+    pkl_files.sort(key=natural_key)
+    if not pkl_files:
+        raise RuntimeError(f"[A3] No PKL found in: {pkl_calib_dir}")
+
+    if front_index < 0 or front_index >= len(pkl_files):
+        raise ValueError(f"[A3] front_index out of range: {front_index}")
+
+    front_pkl = os.path.join(pkl_calib_dir, pkl_files[front_index])
+    front_pts = load_pickle(front_pkl)
+    front_pts = np.asarray(front_pts, dtype=np.float64).reshape(-1, 2)
+
+    expected_n = grid_rows * grid_cols
+    if front_pts.shape != (expected_n, 2):
+        raise ValueError(f"[A3] Expected ({expected_n},2), got {front_pts.shape} from {front_pkl}")
+
+    ## in English
+    K_refined, dist_refined,K_init = _A3_load_calib_params(calib_param_path)
+
+    ## in English
+    dist_init = np.zeros(4, dtype=np.float64)
+
+    ## in English
+    objp = _A3_build_objp(square_size_mm=square_size_mm, grid_rows=grid_rows, grid_cols=grid_cols)
+
+    init_rmse, _, _ = _A3_solve_pnp_rmse(front_pts, objp, K_init, dist_init)
+    refined_rmse, _, _ = _A3_solve_pnp_rmse(front_pts, objp, K_refined, dist_refined)
+
+    verdict = "PASS" if (np.isfinite(init_rmse) and np.isfinite(refined_rmse) and  refined_rmse <= init_rmse ) else "NOT_PASS"
+
+    ## in English
+    df = pd.DataFrame([
+        {"tag": "INIT (dist=0)", "Front_RMSE": float(init_rmse), "front_pkl": os.path.basename(front_pkl)},
+        {"tag": "REFINED", "Front_RMSE": float(refined_rmse), "front_pkl": os.path.basename(front_pkl)},
+    ])
+
+    out_csv = os.path.join(out_dir, "A3_front_rmse.csv")
+    df.to_csv(out_csv, index=False)
+
+    out_xlsx = os.path.join(out_dir, "A3_front_rmse.xlsx")
+    df.to_excel(out_xlsx, index=False)
+
+    out_txt = os.path.join(out_dir, "A3_verdict.txt")
+    with open(out_txt, "w", encoding="utf-8") as f:
+        f.write(f"VERDICT: {verdict}\n")
+        f.write(f"INIT_Front_RMSE: {init_rmse}\n")
+        f.write(f"REFINED_Front_RMSE: {refined_rmse}\n")
+        f.write(f"FRONT_PKL: {front_pkl}\n")
+
+    out_plot = os.path.join(out_dir, "A3_front_rmse_bar.png")
+    _A3_plot_front_rmse_bar(float(init_rmse), float(refined_rmse), out_plot, dpi=300)
+
+    print(f"✅ [A3] FRONT PKL       : {front_pkl}")
+    print(f"✅ [A3] INIT Front_RMSE : {init_rmse}")
+    print(f"✅ [A3] REF Front_RMSE  : {refined_rmse}")
+    print(f"✅ [A3] VERDICT         : {verdict}")
+    print(f"✅ [A3] Saved           : {out_dir}")
+
+    return {
+        "verdict": verdict,
+        "init_rmse": float(init_rmse),
+        "refined_rmse": float(refined_rmse),
+        "front_pkl": front_pkl,
+        "csv": out_csv,
+        "xlsx": out_xlsx,
+        "txt": out_txt,
+        "plot": out_plot,
+    }
+
+
 
 # ============================================================
 # [A4] Undistortion (ProcessPool-safe)

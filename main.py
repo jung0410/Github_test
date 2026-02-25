@@ -41,13 +41,25 @@ def run_pipeline(
     print("RMSE:", calib_result["RMSE_error"])
     print("Saved:", calib_param_path)
 
-    print("\n========== [3/6] A4 Undistort moved images ==========")
+    a3_out_dir = os.path.join(work_dir, "A3_results")
+    print("\n========== [3/7] A3 Reprojection check (INIT vs REFINED) ==========")
+    run_A3_reprojection_check(
+        pkl_calib_dir=pkl_calib_dir,
+        calib_param_path=calib_param_path,
+        out_dir=a3_out_dir,
+        square_size_mm=square_size_mm,
+        grid_rows=9,
+        grid_cols=12,
+        front_index=0,
+    )
+
+    print("\n========== [4/7] A4 Undistort moved images ==========")
     run_A4_undistort_images(moved_image_dir, undist_dir, A, dist, n_jobs=n_jobs)
 
-    print("\n========== [4/6] A1+10 Marker detection (undistorted moved images) ==========")
+    print("\n========== [5/7] A1+10 Marker detection (undistorted moved images) ==========")
     run_A1_plus10_marker_detection(undist_dir, pkl_moved_dir, n_jobs=n_jobs)
 
-    print("\n========== [5/6] A5 Homography estimation (baseline + apply_homography) ==========")
+    print("\n========== [6/7] A5 Homography estimation (baseline + apply_homography) ==========")
     run_A5_homography_from_moved_pkl(
         pkl_moved_dir=pkl_moved_dir,
         out_homography_pkl=homography_param_path,
@@ -58,7 +70,7 @@ def run_pipeline(
         filter_thr=50.0,
     )
 
-    print("\n========== [6/6] A6 Displacement measurement (alignment + displacement) ==========")
+    print("\n========== [7/7] A6 Displacement measurement (alignment + displacement) ==========")
     run_A6_displacement_and_plots(
         pkl_moved_dir=pkl_moved_dir,
         homography_pkl_path=homography_param_path,
